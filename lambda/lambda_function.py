@@ -701,6 +701,19 @@ class PlayPlaylistHandler(AbstractRequestHandler):
         player_controller = controller.Controller(logger, handler_input)
         return player_controller.play_playlist()
 
+class ShufflePlaylistHandler(AbstractRequestHandler):
+    """
+    Handler for the 'ShufflePlaylist' intent.
+    Plays a Plex playlist in shuffle mode.
+    """
+
+    def can_handle(self, handler_input):
+        return is_intent_name('PlayPlaylistShuffle')(handler_input)
+
+    def handle(self, handler_input):
+        logger.debug('In ShufflePlaylistHandler()')
+        player_controller = controller.Controller(logger, handler_input)
+        return player_controller.play_playlist(shuffle=True)
 
 #
 # Exception Handers
@@ -873,6 +886,7 @@ sb.add_request_handler(PlayAlbumByArtistHandler())
 sb.add_request_handler(PlaySongByArtistHandler())
 sb.add_request_handler(PlayMusicByGenreHandler())
 sb.add_request_handler(PlayPlaylistHandler())
+sb.add_request_handler(ShufflePlaylistHandler())
 sb.add_exception_handler(CatchAllExceptionHandler())
 # Register Interceptors
 sb.add_global_request_interceptor(LocalizationInterceptor())

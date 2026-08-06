@@ -952,7 +952,7 @@ class Controller:
         return self.start_playback()
 
 
-    def play_playlist (self) -> Response:
+    def play_playlist (self, shuffle=False) -> Response:
         """
         Play a plex playlist.
         This method searches for a specific playlist. If no playlist is found or an error
@@ -979,14 +979,33 @@ class Controller:
         response = self.load_music_section()
         if response is not None:
             return response
+            
+        for p in self.plex_server.playlists():
+            self.logger.info(f"Playlist gefunden: {p.title}")
 
         # Search for the playlist
         try:
-            plex_track_list =  self.section.playlist(title=playlist.value)
-        except NotFound  as exception:
+            search_query = playlist.value.lower()
+
+            plex_playlist = None
+
+            for p in self.plex_server.playlists():
+                self.logger.info(f"Playlist gefunden: {p.title}")
+
+                if search_query in p.title.lower():
+                    plex_playlist = p
+                    break
+
+            if plex_playlist is None:
+                raise NotFound(f"Keine Playlist gefunden: {playlist.value}")
+
+            plex_track_list = plex_playlist.items()
+
+        except NotFound as exception:
             speak_output = data[prompts.PMS_PLAYLIST_SEARCH_EMPTY].format(playlist.value)
             self.logger.error(exception)
             return self.handler_input.response_builder.speak(speak_output).ask(speak_output).response
+
         except Exception as exception:
             speak_output = data[prompts.PMS_PLAYLIST_SEARCH_ERROR].format(playlist.value)
             self.logger.error(exception)
@@ -1001,4 +1020,17 @@ class Controller:
 
         self.handler_input.response_builder.speak(speak_output)
         self.logger.info(speak_output)
+        
+        if shuffle:
+            persistence_attr = self.handler_input.attributes_manager.persistent_attributes
+            playback_info = persistence_attr.get("playback_info")
+            
+            playlist_len = len(playback_info["playlist"])
+            
+            # Choose random start title
+            if playlist_len > 0:
+                playback_info["index"] = random.randint(0, playlist_len - 1)
+                
+            self.shuffle_playback(True)
+        
         return self.start_playback()
