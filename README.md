@@ -4,10 +4,6 @@ This repository is a community-maintained fork of **AskPlex**.
 
 The original project is no longer actively maintained. In addition, **Plex has discontinued support for its official Alexa skill** (see [Official Announcement](https://forums.plex.tv/t/important-update-regarding-the-plex-alexa-skill/938054)), making community-driven alternatives more important than ever. This fork aims to keep the skill working, fix bugs, and continue adding new features.
 
-> **⚠️ Work in Progress**
->
-> This fork is currently under active development. For now, only the **German documentation and locale** will be updated and extended. Documentation and extensions for the remaining languages will follow soon.
-
 AskPlex is an Alexa skill that allows you to play music hosted by your Plex Media Server (PMS).
 
 There is no official Plex Alexa skill available as Plex dropped the support.
@@ -20,6 +16,7 @@ AskPlex a great alternative for self-hosted music libraries.
 This fork currently includes the following improvements:
 
 * 🎲 **Play playlists randomly with a single command.**
+* Optional: **Make AskPlex a client sending play status to Plex**
 * 🇩🇪 **Fixed the import skill for the German locale.**
 * 📚 **Removed the static playlist slot and retrieve playlist names directly from Plex.**
 
