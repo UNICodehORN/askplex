@@ -18,22 +18,22 @@
       "distributionCountries": [],
       "isAvailableWorldwide": true,
       "locales": {
-      "de-DE": {
-	  "description": "AskPlex ist ein Alexa Skill, mit dem du Musik von deinem Plex Media Server abspielen kannst.",
-	  "examplePhrases": [
-	    "Alexa, öffne AskPlex",
-	    "Alexa, frag AskPlex, Musik abzuspielen",
-	    "Alexa, frag AskPlex, Rockmusik abzuspielen"
-	  ],
-	  "keywords": [
-	    "Plex",
-	    "Musik",
-	    "Media Server",
-	    "Musik abspielen"
-	  ],
-	  "name": "AskPlex",
-	  "summary": "Skill zum Abspielen von Musik von deinem Plex Media Server"
-	}
+        "de-DE": {
+          "description": "AskPlex ist ein Alexa Skill, mit dem du Musik von deinem Plex Media Server abspielen kannst.",
+          "examplePhrases": [
+            "Alexa, öffne AskPlex",
+            "Alexa, frag AskPlex, Musik abzuspielen",
+            "Alexa, frag AskPlex, Rockmusik abzuspielen"
+          ],
+          "keywords": [
+            "Plex",
+            "Musik",
+            "Media Server",
+            "Musik abspielen"
+          ],
+          "name": "AskPlex",
+          "summary": "Skill zum Abspielen von Musik von deinem Plex Media Server"
+        },
         "en-US": {
           "description": "AskPlex is an Alexa skill which allows you to play music hosted by your plex media server",
           "examplePhrases": [
@@ -44,17 +44,6 @@
           "keywords": [],
           "name": "AskPlex",
           "summary": "Skill for playing music from your media server"
-        },
-        "es-US": {
-          "description": "AskPlex es una skill de alexa que permite reproducir música almacenada en tu servidor de medios plex",
-          "examplePhrases": [
-            "Alexa abre askPlex",
-            "Alexa pide a AskPlex pon música",
-            "Alexa pide a AskPlex pon música rock"
-          ],
-          "keywords": [],
-          "name": "AskPlex",
-          "summary": "Sample Short Description"
         }
       }
     }

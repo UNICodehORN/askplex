@@ -4,62 +4,92 @@
       "intents": [
         {
           "name": "AMAZON.CancelIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.HelpIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.StopIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.NavigateHomeIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.PauseIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.ResumeIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.NextIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.PreviousIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.ShuffleOffIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.ShuffleOnIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.RepeatIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.LoopOffIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.LoopOnIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.StartOverIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
-          "slots": [],
+          "slots": [
+
+          ],
           "name": "PlaybackSongDetails",
           "samples": [
             "What is playing",
@@ -77,7 +107,9 @@
           ]
         },
         {
-          "slots": [],
+          "slots": [
+
+          ],
           "name": "PlayRandomMusic",
           "samples": [
             "Play music",
@@ -197,29 +229,33 @@
         },
         {
           "name": "AMAZON.YesIntent",
-          "samples": []
+          "samples": [
+
+          ]
         },
         {
           "name": "AMAZON.NoIntent",
-          "samples": []
+          "samples": [
+
+          ]
+        },
+        {
+          "name": "PlayPlaylistShuffle",
+          "slots": [
+            {
+              "name": "playlist",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "playlist {playlist} shuffle",
+            "play {playlist} shuffled",
+            "shuffle the playlist {playlist}",
+            "play {playlist} in shuffle mode"
+          ]
         }
       ],
       "types": [
-        {
-          "values": [
-            {
-              "name": {
-                "value": "Recently Added"
-              }
-            },
-            {
-              "name": {
-                "value": "Recently Played"
-              }
-            }
-          ],
-          "name": "playlist_names"
-        }
       ]
     }
   }
