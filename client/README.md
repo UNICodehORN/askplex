@@ -117,3 +117,14 @@ Currently playing:
 
 The client service does **not** play the music itself. 
 Its main purpose is to make sure Plex knows which track AskPlex is currently playing.
+
+## Optional: Docker setup
+If you prefer to start the service as docker container, you can use this command template:
+```
+docker run -d \
+  --name askplex-client \
+  -p 8080:8080 \
+  -v /opt/askplex:/opt/askplex \
+  python:3.12 \
+  bash -c "cd /opt/askplex/client && pip install -r requirements.txt && python3 plex_client_service.py"
+``
