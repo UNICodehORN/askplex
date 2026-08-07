@@ -1,3 +1,4 @@
 boto3
 ask-sdk
 plexapi
+requests

@@ -1,4 +1,5 @@
 import random
+import requests
 
 from typing import List, Dict
 from logging import Logger
@@ -264,6 +265,47 @@ class Controller:
 #
 # Playback control
 #
+    def notify_pms_client(self, track: Dict) -> None:
+        """
+        Notify external PMS client about a new playing track.
+        """
+
+        if not config.PMS_CLIENT_ACTIVE:
+            self.logger.debug("PMS client disabled")
+            return
+
+        if not config.PMS_CLIENT_URL:
+            self.logger.warning("PMS client URL missing")
+            return
+
+        try:
+            payload = {
+                "ratingKey": str(track["id"])
+            }
+
+            url = config.PMS_CLIENT_URL.rstrip("/") + "/play"
+
+            response = requests.post(
+                url,
+                json=payload,
+                timeout=config.PMS_CLIENT_TIMEOUT
+            )
+
+            if response.status_code >= 400:
+                self.logger.warning(
+                    f"PMS client returned {response.status_code}: {response.text}"
+                )
+            else:
+                self.logger.info(
+                    f"PMS client notified: {track['title']}"
+                )
+
+        except Exception as exception:
+            # never block playback
+            self.logger.error(
+                f"PMS client notification failed: {exception}"
+            )
+
     def track_to_audio_item(self, track: Dict, offset: int, previous_token: str) -> AudioItem:
         """
         Converts a track (Dict) to an AudioItem object.
@@ -343,6 +385,11 @@ class Controller:
 
         playback_info["offset_in_ms"] = 0
 
+        current_track = self.get_current_track()
+
+        if current_track:
+            self.notify_pms_client(current_track)
+
         return self.resume_playback()
 
 
@@ -371,6 +418,7 @@ class Controller:
         prevous_track = self.get_prevous_track()
         if prevous_track == None:
             return self.handler_input.response_builder.response
+        self.notify_pms_client(next_track)
 
         directive = PlayDirective(play_behavior=PlayBehavior.REPLACE_ALL, audio_item=self.track_to_audio_item(prevous_track, 0, None))
         self.handler_input.response_builder.add_directive(directive).set_should_end_session(True)
@@ -391,6 +439,8 @@ class Controller:
         next_track = self.get_next_track(True)
         if next_track == None:
             return self.handler_input.response_builder.response
+
+        self.notify_pms_client(next_track)
 
         self.logger.debug(f'next_track: {next_track["title"]} by {next_track["artist"]}')
 

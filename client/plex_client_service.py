@@ -95,7 +95,7 @@ def authenticate():
 
     print()
     print("==============================")
-    print("Plex Login succesful")
+    print("Plex Login")
     print("==============================")
     print()
     print("Open:")

@@ -5,6 +5,7 @@ __pycache__/
 
 # config
 lambda/askplex/config.py
+client/plex_session.json
 
 # C extensions
 *.so
