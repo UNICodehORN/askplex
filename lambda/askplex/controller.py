@@ -29,7 +29,7 @@ class Controller:
             Adds a track to the playlist.
         get_next_track(update_index: bool) -> Dict:
             Retrieves the next track in the playlist.
-        get_prevous_track() -> Dict:
+        get_previous_track() -> Dict:
             Retrieves the previous track in the playlist.
         get_current_track() -> Dict:
             Retrieves the current track in the playlist.
@@ -152,14 +152,14 @@ class Controller:
         return playback_info["playlist"].get(str(play_order[index]))
 
 
-    def get_prevous_track(self) -> Dict:
+    def get_previous_track(self) -> Dict:
         """
         Retrieves the previous track in the playlist.
         Returns:
             Dict: The previous track information
         """
 
-        self.logger.debug('In get_prevous_track()')
+        self.logger.debug('In get_previous_track()')
         persistence_attr = self.handler_input.attributes_manager.persistent_attributes
         playback_setting = persistence_attr.get("playback_setting")
         playback_info = persistence_attr.get("playback_info")
@@ -262,16 +262,65 @@ class Controller:
         playback_info["play_order"] = []
 
 
+    def clear_persisted_state(self) -> None:
+        """
+        Delete this device's persisted playback state from DynamoDB.
+
+        Persistence is partitioned per device, so every device that
+        ever plays would otherwise leave a row behind forever. This is
+        called when a session ends with nothing left to resume (end of
+        playlist, or the user declines to resume), so the table only
+        ever holds rows for devices with an active/resumable session.
+
+        The SDK marks the attributes as unset after deletion, so the
+        SavePersistenceAttributesResponseInterceptor becomes a no-op
+        for this request and does not immediately re-create the row.
+        """
+
+        self.logger.debug('In clear_persisted_state()')
+
+        self.handler_input.attributes_manager.delete_persistent_attributes()
+
+
 #
 # Playback control
 #
-    def notify_pms_client(self, track: Dict) -> None:
+    def get_pms_stream_id(self) -> str:
         """
-        Notify external PMS client about a new playing track.
+        Returns a stable PMS stream identifier for the
+        Alexa device that is currently handling the request.
+        """
+
+        try:
+            device_id = (
+                self.handler_input.request_envelope
+                .context
+                .system
+                .device
+                .device_id
+            )
+
+            if device_id:
+                return f"alexa-{device_id}"
+
+        except Exception as exception:
+            self.logger.warning(
+                f"Unable to determine Alexa device ID: {exception}"
+            )
+
+        return "alexa-default"
+
+    def notify_pms_client(
+        self,
+        action: str,
+        track: Dict = None,
+        position: int = 0,
+    ) -> None:
+        """
+        Notify the PMS client about a playback state change.
         """
 
         if not config.PMS_CLIENT_ACTIVE:
-            self.logger.debug("PMS client disabled")
             return
 
         if not config.PMS_CLIENT_URL:
@@ -279,32 +328,50 @@ class Controller:
             return
 
         try:
+            stream_id = self.get_pms_stream_id()
+
             payload = {
-                "ratingKey": str(track["id"])
+                "streamId": stream_id,
+                "position": position,
             }
 
-            url = config.PMS_CLIENT_URL.rstrip("/") + "/play"
+            if track is not None:
+                payload["ratingKey"] = str(track["id"])
+
+            url = (
+                config.PMS_CLIENT_URL.rstrip("/")
+                + f"/{action}"
+            )
+
+            self.logger.info(
+                f"PMS client: action={action} "
+                f"streamId={stream_id} "
+                f"position={position}"
+            )
 
             response = requests.post(
                 url,
                 json=payload,
-                timeout=config.PMS_CLIENT_TIMEOUT
+                timeout=config.PMS_CLIENT_TIMEOUT,
             )
 
             if response.status_code >= 400:
                 self.logger.warning(
-                    f"PMS client returned {response.status_code}: {response.text}"
-                )
-            else:
-                self.logger.info(
-                    f"PMS client notified: {track['title']}"
+                    f"PMS client returned "
+                    f"{response.status_code}: "
+                    f"{response.text}"
                 )
 
         except Exception as exception:
-            # never block playback
+            # Never block Alexa playback.
             self.logger.error(
                 f"PMS client notification failed: {exception}"
             )
+
+    def pause_playback(self):
+        self.handler_input.response_builder.add_directive(
+            StopDirective()
+        )
 
     def track_to_audio_item(self, track: Dict, offset: int, previous_token: str) -> AudioItem:
         """
@@ -388,21 +455,60 @@ class Controller:
         current_track = self.get_current_track()
 
         if current_track:
-            self.notify_pms_client(current_track)
+            self.notify_pms_client(
+                action="play",
+                track=current_track,
+                position=0,
+            )
 
         return self.resume_playback()
 
 
-    def pause_playback (self) -> Response:
+    def pause_playback(self) -> Response:
         """
-        Handles the pause command.
-        Returns:
-            Response: The response object with the stop directive.
+        Pauses playback and informs the PMS client about the
+        current playback position.
         """
-        self.logger.debug('In pause_playback()')
 
-        self.handler_input.response_builder.add_directive(StopDirective()).set_should_end_session(True)
-        return self.handler_input.response_builder.response
+        self.logger.debug(
+            "In pause_playback()"
+        )
+
+        persistence_attr = (
+            self.handler_input
+            .attributes_manager
+            .persistent_attributes
+        )
+
+        playback_info = persistence_attr.get(
+            "playback_info"
+        )
+
+        position = int(
+            playback_info.get(
+                "offset_in_ms",
+                0
+            )
+        )
+
+        current_track = self.get_current_track()
+
+        if current_track:
+            self.notify_pms_client(
+                action="pause",
+                track=current_track,
+                position=position,
+            )
+
+        self.handler_input.response_builder.add_directive(
+            StopDirective()
+        ).set_should_end_session(True)
+
+        return (
+            self.handler_input
+            .response_builder
+            .response
+        )
 
 
     def previous_playback (self) -> Response:
@@ -415,10 +521,15 @@ class Controller:
 
         self.logger.debug('In previous_playback()')
 
-        prevous_track = self.get_prevous_track()
+        prevous_track = self.get_previous_track()
         if prevous_track == None:
             return self.handler_input.response_builder.response
-        self.notify_pms_client(next_track)
+
+        self.notify_pms_client(
+            action="play",
+            track=prevous_track,
+            position=0,
+        )
 
         directive = PlayDirective(play_behavior=PlayBehavior.REPLACE_ALL, audio_item=self.track_to_audio_item(prevous_track, 0, None))
         self.handler_input.response_builder.add_directive(directive).set_should_end_session(True)
@@ -440,8 +551,11 @@ class Controller:
         if next_track == None:
             return self.handler_input.response_builder.response
 
-        self.notify_pms_client(next_track)
-
+        self.notify_pms_client(
+            action="play",
+            track=next_track,
+            position=0,
+        )
         self.logger.debug(f'next_track: {next_track["title"]} by {next_track["artist"]}')
 
         directive = PlayDirective(play_behavior=PlayBehavior.REPLACE_ALL, audio_item=self.track_to_audio_item(next_track, 0, None))
@@ -513,38 +627,97 @@ class Controller:
 #
 # Playback events
 #
-    def playback_started (self) -> Response:
+    def playback_started(self) -> Response:
         """
-        Handles the event when playback is started.
-        This method only sets the playback session and returns the response.
-        Returns:
-            Response: The response object with no output speech.
+        Handles Alexa's PlaybackStarted event.
+
+        Notifies the PMS client that playback has resumed.
         """
 
-        self.logger.debug('In playback_started()')
-        persistence_attr = self.handler_input.attributes_manager.persistent_attributes
-        playback_info = persistence_attr.get("playback_info")
+        self.logger.debug(
+            "In playback_started()"
+        )
+
+        persistence_attr = (
+            self.handler_input
+            .attributes_manager
+            .persistent_attributes
+        )
+
+        playback_info = persistence_attr.get(
+            "playback_info"
+        )
 
         playback_info["in_playback_session"] = True
 
-        return self.handler_input.response_builder.response
+        current_track = self.get_current_track()
+
+        if current_track:
+            position = int(
+                playback_info.get(
+                    "offset_in_ms",
+                    0
+                )
+            )
+
+            self.notify_pms_client(
+                action="resume",
+                track=current_track,
+                position=position,
+            )
+
+        return (
+            self.handler_input
+            .response_builder
+            .response
+        )
 
 
-    def playback_stopped (self) -> Response:
+    def playback_stopped(self) -> Response:
         """
-        Handles the event when playback is stopped.
-        This method only saves the playback offset and returns the response.
-        Returns:
-            Response: The response object with no output speech.
+        Handles Alexa's PlaybackStopped event.
+
+        Saves the exact playback position and informs the
+        PMS client that playback is paused.
         """
 
-        self.logger.debug('In playback_stopped()')
-        persistence_attr = self.handler_input.attributes_manager.persistent_attributes
-        playback_info = persistence_attr.get("playback_info")
+        self.logger.debug(
+            "In playback_stopped()"
+        )
 
-        playback_info["offset_in_ms"] = self.handler_input.request_envelope.request.offset_in_milliseconds
+        persistence_attr = (
+            self.handler_input
+            .attributes_manager
+            .persistent_attributes
+        )
 
-        return self.handler_input.response_builder.response
+        playback_info = persistence_attr.get(
+            "playback_info"
+        )
+
+        position = int(
+            self.handler_input
+            .request_envelope
+            .request
+            .offset_in_milliseconds
+        )
+
+        playback_info["offset_in_ms"] = position
+
+        current_track = self.get_current_track()
+
+        if current_track:
+            self.notify_pms_client(
+                action="pause",
+                track=current_track,
+                position=position,
+            )
+
+        return (
+            self.handler_input
+            .response_builder
+            .response
+        )
 
 
     def playback_nearly_finished (self) -> Response:
@@ -577,31 +750,61 @@ class Controller:
         return self.handler_input.response_builder.response
 
 
-    def playback_finished (self) -> Response:
+    def playback_finished(self) -> Response:
         """
-        Handles the event when playback is finished.
-        This method only updates the next playback index (the enqueue is already
-        done in the PlaybackNearlyFinishedHandler), resets the playback_session and
-        next_stream_enqueued flags and sets the track's offset to 0.
-        Returns:
-            Response: The response object with no output speech.
+        Handles the event when the current track finishes.
         """
 
-        self.logger.debug('In playback_finished()')
-        persistence_attr = self.handler_input.attributes_manager.persistent_attributes
-        playback_info = persistence_attr.get("playback_info")
+        self.logger.debug(
+            "In playback_finished()"
+        )
 
-        # get next track just to update the index
+        persistence_attr = (
+            self.handler_input
+            .attributes_manager
+            .persistent_attributes
+        )
+
+        playback_info = persistence_attr.get(
+            "playback_info"
+        )
+
         next_track = self.get_next_track(True)
-        if next_track == None:
-            return self.handler_input.response_builder.response
 
-        playback_info["in_playback_session"] = False
+        if next_track is None:
+
+            # End of the playlist: nothing left to resume, so drop this
+            # device's persisted state instead of leaving a stale,
+            # empty session behind in DynamoDB.
+            self.clear_persisted_state()
+
+            return (
+                self.handler_input
+                .response_builder
+                .response
+            )
+
+        playback_info["in_playback_session"] = True
         playback_info["next_stream_enqueued"] = False
         playback_info["offset_in_ms"] = 0
 
-        self.logger.info(f'Next track: {next_track["title"]} by {next_track["artist"]} updated')
-        return self.handler_input.response_builder.response
+        self.notify_pms_client(
+            action="play",
+            track=next_track,
+            position=0,
+        )
+
+        self.logger.info(
+            f"Next track started: "
+            f"{next_track['title']} "
+            f"by {next_track['artist']}"
+        )
+
+        return (
+            self.handler_input
+            .response_builder
+            .response
+        )
 
 
     def playback_failed (self) -> Response:

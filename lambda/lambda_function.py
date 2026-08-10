@@ -12,6 +12,7 @@ from ask_sdk_core.skill_builder import CustomSkillBuilder
 
 from ask_sdk_model import Response
 from ask_sdk_dynamodb.adapter import DynamoDbAdapter
+from ask_sdk_dynamodb.partition_keygen import user_id_partition_keygen
 
 from askplex import config
 from askplex import prompts
@@ -30,7 +31,46 @@ logger.addHandler(handler)
 ddb_region = os.environ.get('DYNAMODB_PERSISTENCE_REGION')
 ddb_table_name = os.environ.get('DYNAMODB_PERSISTENCE_TABLE_NAME')
 ddb_resource = boto3.resource('dynamodb', region_name=ddb_region)
-dynamodb_adapter = DynamoDbAdapter(table_name=ddb_table_name, create_table=False, dynamodb_resource=ddb_resource)
+
+
+def device_partition_keygen(request_envelope):
+    """
+    Partition the persisted playback state per (user, device).
+
+    The default SDK key generator (user_id_partition_keygen) stores a
+    single item per Amazon account. Two devices of the same account
+    playing in parallel would then share one playlist/index/offset,
+    so one stream's PlaybackFinished/NearlyFinished event advances the
+    other stream's index and next_stream_enqueued flag. That produces
+    the wrong "next song" and stalls the second stream after one track.
+
+    Scoping the key by device_id gives each device its own independent
+    playback state. This matches Controller.get_pms_stream_id(), which
+    also keys the PMS client stream by device_id, so the controller's
+    brain and the client service stay aligned.
+    """
+
+    user_key = user_id_partition_keygen(request_envelope)
+
+    try:
+        device_id = (
+            request_envelope.context.system.device.device_id
+        )
+    except AttributeError:
+        device_id = None
+
+    if device_id:
+        return f"{user_key}:{device_id}"
+
+    return user_key
+
+
+dynamodb_adapter = DynamoDbAdapter(
+    table_name=ddb_table_name,
+    create_table=False,
+    dynamodb_resource=ddb_resource,
+    partition_keygen=device_partition_keygen,
+)
 
 DYNAMODB_SCHEMA = 0
 
@@ -202,6 +242,10 @@ class NoHandler(AbstractRequestHandler):
             player_controller = controller.Controller(logger, handler_input)
             player_controller.clear_playlist()
             playback_info["in_playback_session"] = False
+
+            # User does not want to resume: discard the persisted
+            # session so it does not linger in the database.
+            player_controller.clear_persisted_state()
 
             session_attr["request"]="action"
             speak_output = data[prompts.SKILL_WELCOME_REPROMPT]
