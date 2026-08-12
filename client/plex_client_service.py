@@ -14,6 +14,7 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from askplex.config import PMS_SERVER_URL
 
 # ============================================================
 # Import AskPlex configuration
@@ -22,9 +23,6 @@ from pydantic import BaseModel
 sys.path.append(
     os.path.abspath("../lambda")
 )
-
-from askplex.config import PMS_SERVER_URL
-
 
 # ============================================================
 # Configuration
@@ -44,6 +42,9 @@ PLEX_VERSION = "0.1"
 # session from "Now Playing" if it is not refreshed regularly.
 TIMELINE_INTERVAL = 10
 
+# How long a paused/stopped Plex session is kept alive
+# before timeline updates stop completely.
+PAUSE_STOP_HOLD_SECONDS = 10 * 60
 
 # ============================================================
 # FastAPI
@@ -142,6 +143,9 @@ class PlaybackState:
     # worker cleanly supersedes the old one.
     generation: int = 0
 
+    # Monotonic timestamp until which a paused/stopped session
+    # should continue receiving Plex timeline updates.
+    hold_until: float | None = None
 
 # ============================================================
 # All active playback streams
@@ -158,8 +162,8 @@ class PlaybackState:
 # independently.
 #
 
-playbacks: dict[str, PlaybackState] = {}
 
+playbacks: dict[str, PlaybackState] = {}
 playbacks_lock = threading.RLock()
 
 
@@ -547,6 +551,32 @@ def playback_worker(playback: PlaybackState):
                 return
 
             state = playback.state
+            hold_until = playback.hold_until
+
+        # ----------------------------------------------------
+        # Paused hold period expired
+        # ----------------------------------------------------
+
+        if (
+            state == "paused"
+            and hold_until is not None
+            and time.monotonic() >= hold_until
+        ):
+
+            with playbacks_lock:
+
+                if playback.generation != generation:
+                    return
+
+                if playbacks.get(playback.stream_id) is playback:
+                    del playbacks[playback.stream_id]
+
+            print(
+                "Plex session hold expired:",
+                f"stream={playback.stream_id}"
+            )
+
+            return
 
         position = get_current_position(playback)
 
@@ -720,6 +750,9 @@ def pause_playback(
         playback.position = position
         playback.playing_started_at = None
         playback.state = "paused"
+        playback.hold_until = (
+            time.monotonic() + PAUSE_HOLD_SECONDS
+        )
 
     # Tell Plex immediately.
     send_timeline(
@@ -773,6 +806,7 @@ def resume_playback(
 
         playback.playing_started_at = time.monotonic()
         playback.state = "playing"
+        playback.hold_until = None
 
         base_position = playback.position
 
