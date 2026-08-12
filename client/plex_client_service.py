@@ -14,8 +14,6 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from askplex.config import PMS_SERVER_URL
-
 # ============================================================
 # Import AskPlex configuration
 # ============================================================
@@ -23,6 +21,8 @@ from askplex.config import PMS_SERVER_URL
 sys.path.append(
     os.path.abspath("../lambda")
 )
+
+from askplex.config import PMS_SERVER_URL
 
 # ============================================================
 # Configuration
