@@ -42,9 +42,9 @@ PLEX_VERSION = "0.1"
 # session from "Now Playing" if it is not refreshed regularly.
 TIMELINE_INTERVAL = 10
 
-# How long a paused/stopped Plex session is kept alive
+# How long a paused Plex session is kept alive
 # before timeline updates stop completely.
-PAUSE_STOP_HOLD_SECONDS = 10 * 60
+PAUSE_HOLD_SECONDS = 10 * 60
 
 # ============================================================
 # FastAPI
